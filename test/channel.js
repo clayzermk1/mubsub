@@ -10,9 +10,11 @@ describe('Channel', function () {
     });
 
     it('unsubscribes properly', function (done) {
-        var subscription = this.channel.subscribe('a', function (data) {
+        var self = this;
+
+        this.channel.subscribe('a', function (data) {
             assert.equal(data, 'a');
-            subscription.unsubscribe();
+            self.channel.unsubscribe();
             done();
         });
 
@@ -24,7 +26,7 @@ describe('Channel', function () {
     it('unsubscribes if channel is closed', function (done) {
         var self = this;
 
-        var subscription = this.channel.subscribe('a', function (data) {
+        this.channel.subscribe('a', function (data) {
             assert.equal(data, 'a');
             self.channel.close();
             done();
@@ -38,7 +40,7 @@ describe('Channel', function () {
     it('unsubscribes if client is closed', function (done) {
         var self = this;
 
-        var subscription = this.channel.subscribe('a', function (data) {
+        this.channel.subscribe('a', function (data) {
             assert.equal(data, 'a');
             self.client.close();
             done();
@@ -50,52 +52,62 @@ describe('Channel', function () {
     });
 
     it('can subscribe and publish different events', function (done) {
-        var todo = 3;
-        var subscriptions = [];
+        var self = this, triggered = {};
 
-        function complete() {
-            todo--;
-
-            if (!todo) {
-                subscriptions.forEach(function (subscriptions) {
-                    subscriptions.unsubscribe();
-                });
-
+        function complete (ev) {
+            assert.equal(triggered[ev], undefined);
+            triggered[ev] = true;
+            if (Object.keys(triggered).length === 3) {
+                self.channel.unsubscribe();
                 done();
             }
         }
 
-        subscriptions.push(this.channel.subscribe('a', function (data) {
+        this.channel.subscribe('a', function (data) {
             assert.equal(data, 'a');
-            complete();
-        }));
+            complete('a');
+        });
 
-        subscriptions.push(this.channel.subscribe('b', function (data) {
+        this.channel.subscribe('b', function (data) {
             assert.deepEqual(data, {b: 1});
-            complete();
-        }));
+            complete('b');
+        });
 
-        subscriptions.push(this.channel.subscribe('c', function (data) {
+        this.channel.subscribe('c', function (data) {
             assert.deepEqual(data, ['c']);
-            complete();
-        }));
+            complete('c');
+        });
 
         this.channel.publish('a', 'a');
         this.channel.publish('b', { b: 1 });
         this.channel.publish('c', ['c']);
     });
 
+    it('can publish multiple arguments like emit', function (done) {
+        var self = this;
+
+        this.channel.subscribe('a', function (foo, bar, baz) {
+            assert.equal(foo, 'foo');
+            assert.equal(bar, 'bar');
+            assert.equal(baz, 'baz');
+            self.channel.unsubscribe();
+            done();
+        });
+
+        this.channel.publish('a', 'foo', 'bar', 'baz');
+    });
+
     it('gets lots of subscribed data fast enough', function (done) {
         var channel = this.client.channel('channel.bench', { size: 1024 * 1024 * 100 });
-        
+
         var n = 5000;
         var count = 0;
 
-        var subscription = channel.subscribe('a', function (_data) {
+        channel.subscribe('a', function (_data) {
             assert.deepEqual(_data, data);
 
             if (++count == n) {
-                subscription.unsubscribe();
+                channel.unsubscribe();
                 done();
             }
         });
